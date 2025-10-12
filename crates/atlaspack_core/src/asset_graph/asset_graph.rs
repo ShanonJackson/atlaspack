@@ -20,12 +20,18 @@ pub enum DependencyState {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct DependencyNode {
+  pub value: Arc<Dependency>,
+  pub state: DependencyState,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum AssetGraphNode {
   Root,
   Entry,
   Asset(Arc<Asset>),
-  Dependency(Arc<Dependency>),
+  Dependency(DependencyNode),
 }
 
 pub type NodeId = usize;
@@ -35,7 +41,6 @@ pub struct AssetGraph {
   pub graph: StableDiGraph<NodeId, ()>,
   nodes: Vec<AssetGraphNode>,
   requested_symbols: HashMap<NodeId, HashSet<String>>,
-  dependency_states: HashMap<NodeId, DependencyState>,
   node_id_to_node_index: HashMap<NodeId, NodeIndex>,
   content_key_to_node_id: HashMap<String, NodeId>,
   root_node_id: NodeId,
@@ -60,7 +65,6 @@ impl AssetGraph {
     AssetGraph {
       graph,
       requested_symbols: HashMap::new(),
-      dependency_states: HashMap::new(),
       node_id_to_node_index,
       content_key_to_node_id: HashMap::new(),
       nodes,
@@ -69,13 +73,20 @@ impl AssetGraph {
   }
 
   pub fn edges(&self) -> Vec<u32> {
-    let raw_edges = self.graph.edge_references();
-    let mut edges = Vec::new();
-    let nodes = self.graph.node_weights().collect::<Vec<_>>();
+    let mut edges = Vec::with_capacity(self.graph.edge_count() * 2);
 
-    for edge in raw_edges {
-      edges.push(*nodes[edge.source().index()] as u32);
-      edges.push(*nodes[edge.target().index()] as u32);
+    for edge in self.graph.edge_references() {
+      let source = self
+        .graph
+        .node_weight(edge.source())
+        .expect("Source node should exist");
+      let target = self
+        .graph
+        .node_weight(edge.target())
+        .expect("Target node should exist");
+
+      edges.push(*source as u32);
+      edges.push(*target as u32);
     }
 
     edges
@@ -138,11 +149,13 @@ impl AssetGraph {
   pub fn add_dependency(&mut self, dependency: Dependency) -> NodeId {
     let node_id = self.add_node(
       dependency.id(),
-      AssetGraphNode::Dependency(Arc::new(dependency)),
+      AssetGraphNode::Dependency(DependencyNode {
+        value: Arc::new(dependency),
+        state: DependencyState::New,
+      }),
     );
 
     self.requested_symbols.insert(node_id, HashSet::new());
-    self.dependency_states.insert(node_id, DependencyState::New);
     node_id
   }
 
@@ -151,23 +164,29 @@ impl AssetGraph {
     let AssetGraphNode::Dependency(node) = value else {
       return None;
     };
-    Some(node.clone())
+    Some(node.value.clone())
   }
 
   pub fn get_dependency_state(&self, idx: &NodeId) -> &DependencyState {
-    self
-      .dependency_states
-      .get(idx)
-      .expect("Dependency state should exist")
+    let AssetGraphNode::Dependency(node) =
+      self.nodes.get(*idx).expect("Dependency state should exist")
+    else {
+      panic!("Dependency state should exist");
+    };
+
+    &node.state
   }
 
   pub fn set_dependency_state(&mut self, idx: &NodeId, state: DependencyState) {
-    let dep_state = self
-      .dependency_states
-      .get_mut(idx)
-      .expect("Dependency state should exist");
+    let AssetGraphNode::Dependency(node) = self
+      .nodes
+      .get_mut(*idx)
+      .expect("Dependency state should exist")
+    else {
+      panic!("Dependency state should exist");
+    };
 
-    *dep_state = state;
+    node.state = state;
   }
 
   pub fn get_dependencies(&self) -> impl Iterator<Item = &Dependency> {
@@ -175,7 +194,7 @@ impl AssetGraph {
       let AssetGraphNode::Dependency(dep) = node else {
         return None;
       };
-      Some(dep.as_ref())
+      Some(dep.value.as_ref())
     })
   }
 
@@ -252,7 +271,7 @@ impl std::hash::Hash for AssetGraph {
       std::mem::discriminant(node).hash(state);
       match node {
         AssetGraphNode::Asset(asset) => asset.id.hash(state),
-        AssetGraphNode::Dependency(dependency) => dependency.id().hash(state),
+        AssetGraphNode::Dependency(dependency) => dependency.value.id.hash(state),
         _ => {}
       }
     }
