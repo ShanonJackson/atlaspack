@@ -2,8 +2,6 @@ use napi::{Env, JsObject};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::Serialize;
 
-use anyhow::anyhow;
-
 use atlaspack_core::asset_graph::{AssetGraph, AssetGraphNode, DependencyState};
 use atlaspack_core::types::{Asset, Dependency};
 
@@ -28,24 +26,13 @@ pub fn serialize_asset_graph(env: &Env, asset_graph: &AssetGraph) -> anyhow::Res
         AssetGraphNode::Asset(asset) => SerializedAssetGraphNode::Asset {
           value: asset.as_ref(),
         },
-        AssetGraphNode::Dependency(dependency) => {
-          let Some(dep_node_id) = asset_graph.get_node_id_by_content_key(&dependency.id()) else {
-            return Err(anyhow!(
-              "Dependency node not found for id: {}",
-              dependency.id()
-            ));
-          };
-
-          let dep_state = asset_graph.get_dependency_state(dep_node_id);
-
-          SerializedAssetGraphNode::Dependency {
-            value: SerializedDependency {
-              id: dependency.id(),
-              dependency: dependency.as_ref(),
-            },
-            has_deferred: *dep_state == DependencyState::Deferred,
-          }
-        }
+        AssetGraphNode::Dependency(dependency) => SerializedAssetGraphNode::Dependency {
+          value: SerializedDependency {
+            id: dependency.value.id.clone(),
+            dependency: dependency.value.as_ref(),
+          },
+          has_deferred: dependency.state == DependencyState::Deferred,
+        },
       }))
     })
     .collect::<anyhow::Result<Vec<_>>>()?;
