@@ -29,6 +29,7 @@ serde = { workspace = true, features = ["derive", "rc"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 serde_repr = { workspace = true }
 serde-value = { workspace = true }
+rustc-hash = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 xxhash-rust = { workspace = true, features = ["xxh3"] }

@@ -493,6 +493,7 @@ dependencies = [
  "nodejs-semver",
  "petgraph 0.7.1",
  "pretty_assertions",
+ "rustc-hash 1.1.0",
  "serde",
  "serde-value",
  "serde_json",

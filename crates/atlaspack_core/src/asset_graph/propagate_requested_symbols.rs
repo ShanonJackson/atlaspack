@@ -1,9 +1,9 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::types::Asset;
 use crate::types::Dependency;
 use crate::types::Symbol;
+use rustc_hash::FxHashSet;
 
 use super::asset_graph::AssetGraph;
 use super::asset_graph::DependencyState;
@@ -27,9 +27,9 @@ pub fn propagate_requested_symbols<F>(
   let mut next = vec![(initial_asset_id, initial_dependency_id)];
 
   while let Some((asset_id, dependency_id)) = next.pop() {
-    let mut dependency_re_exports = HashSet::<String>::default();
-    let mut dependency_wildcards = HashSet::<String>::default();
-    let mut asset_requested_symbols_buf = HashSet::<String>::default();
+    let mut dependency_re_exports = FxHashSet::<String>::default();
+    let mut dependency_wildcards = FxHashSet::<String>::default();
+    let mut asset_requested_symbols_buf = FxHashSet::<String>::default();
 
     let asset = asset_graph.get_asset(&asset_id).unwrap();
 

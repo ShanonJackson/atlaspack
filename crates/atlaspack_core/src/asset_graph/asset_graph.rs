@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use petgraph::Direction;
@@ -7,6 +5,8 @@ use petgraph::graph::NodeIndex;
 use petgraph::stable_graph::StableDiGraph;
 use petgraph::visit::EdgeRef;
 use petgraph::visit::IntoEdgeReferences;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 use crate::types::Asset;
 use crate::types::Dependency;
@@ -40,9 +40,9 @@ pub type NodeId = usize;
 pub struct AssetGraph {
   pub graph: StableDiGraph<NodeId, ()>,
   nodes: Vec<AssetGraphNode>,
-  requested_symbols: Vec<Option<HashSet<String>>>,
+  requested_symbols: Vec<Option<FxHashSet<String>>>,
   node_indices: Vec<NodeIndex>,
-  content_key_to_node_id: HashMap<String, NodeId>,
+  content_key_to_node_id: FxHashMap<String, NodeId>,
   root_node_id: NodeId,
 }
 
@@ -65,7 +65,7 @@ impl AssetGraph {
       graph,
       requested_symbols: vec![None],
       node_indices: vec![node_index],
-      content_key_to_node_id: HashMap::new(),
+      content_key_to_node_id: FxHashMap::default(),
       nodes,
       root_node_id,
     }
@@ -122,7 +122,7 @@ impl AssetGraph {
 
   pub fn add_asset(&mut self, asset: Arc<Asset>) -> NodeId {
     let node_id = self.add_node(asset.id.clone(), AssetGraphNode::Asset(asset));
-    self.requested_symbols[node_id] = Some(HashSet::new());
+    self.requested_symbols[node_id] = Some(FxHashSet::default());
     node_id
   }
 
@@ -156,7 +156,7 @@ impl AssetGraph {
       }),
     );
 
-    self.requested_symbols[node_id] = Some(HashSet::new());
+    self.requested_symbols[node_id] = Some(FxHashSet::default());
     node_id
   }
 
@@ -207,14 +207,14 @@ impl AssetGraph {
       .collect()
   }
 
-  pub fn get_requested_symbols(&self, idx: &NodeId) -> Option<&HashSet<String>> {
+  pub fn get_requested_symbols(&self, idx: &NodeId) -> Option<&FxHashSet<String>> {
     self
       .requested_symbols
       .get(*idx)
       .and_then(|symbols| symbols.as_ref())
   }
 
-  pub fn get_requested_symbols_mut(&mut self, idx: &NodeId) -> Option<&mut HashSet<String>> {
+  pub fn get_requested_symbols_mut(&mut self, idx: &NodeId) -> Option<&mut FxHashSet<String>> {
     self
       .requested_symbols
       .get_mut(*idx)
@@ -293,6 +293,7 @@ mod tests {
 
   use super::super::propagate_requested_symbols::propagate_requested_symbols;
   use super::*;
+  use rustc_hash::FxHashSet;
 
   type TestSymbol<'a> = (&'a str, &'a str, bool);
   fn symbol(test_symbol: &TestSymbol) -> Symbol {
@@ -309,7 +310,7 @@ mod tests {
     let expected = expected
       .into_iter()
       .map(|s| s.into())
-      .collect::<HashSet<String>>();
+      .collect::<FxHashSet<String>>();
 
     assert_eq!(graph.get_requested_symbols(&idx).unwrap(), &expected);
   }
@@ -349,7 +350,7 @@ mod tests {
 
   #[test]
   fn should_request_entry_asset() {
-    let mut requested = HashSet::new();
+    let mut requested = FxHashSet::default();
     let mut graph = AssetGraph::new();
     let target = Target::default();
     let dep = Dependency::entry(String::from("index.js"), target);
@@ -367,7 +368,7 @@ mod tests {
       },
     );
 
-    assert_eq!(requested, HashSet::from_iter(vec![dep_a_node]));
+    assert_eq!(requested, FxHashSet::from_iter(vec![dep_a_node]));
     assert_requested_symbols(&graph, dep_a_node, vec!["a"]);
   }
 
