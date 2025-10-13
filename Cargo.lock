@@ -430,6 +430,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlaspack_benchmark"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "serde_json",
+]
+
+[[package]]
 name = "atlaspack_config"
 version = "0.1.0"
 dependencies = [

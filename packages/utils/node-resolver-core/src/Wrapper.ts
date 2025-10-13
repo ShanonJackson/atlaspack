@@ -69,10 +69,21 @@ type ResolveOptions = {
 export default class NodeResolver {
   resolversByEnv: Map<string, any>;
   options: Options;
+  #cache: Map<
+    string,
+    Promise<
+      | ResolveResult
+      | null
+      | undefined
+      | {isExcluded: true}
+      | {diagnostics?: Array<Diagnostic>}
+    >
+  >;
 
   constructor(options: Options) {
     this.options = options;
     this.resolversByEnv = new Map();
+    this.#cache = new Map();
   }
 
   async resolve(
@@ -153,6 +164,25 @@ export default class NodeResolver {
       this.options.fs instanceof NodeFS &&
       process.versions.pnp == null;
 
+    let cacheKey = this.getCacheKey(options);
+    if (cacheKey != null) {
+      let cached = this.#cache.get(cacheKey);
+      if (cached) {
+        return this.cloneResolveResult(await cached);
+      }
+    }
+
+    let fastPath = this.tryResolveRelative(options);
+    if (fastPath != null) {
+      if (cacheKey != null) {
+        const clonedFastPath = this.cloneResolveResult(fastPath);
+        this.#cache.set(cacheKey, Promise.resolve(clonedFastPath));
+        return this.cloneResolveResult(clonedFastPath);
+      }
+
+      return fastPath;
+    }
+
     let res = canResolveAsync
       ? await resolver.resolveAsync(options)
       : resolver.resolve(options);
@@ -169,9 +199,16 @@ export default class NodeResolver {
       res.invalidateOnFileChange.push(pnp.resolveToUnqualified('pnpapi', null));
     }
 
+    let result:
+      | ResolveResult
+      | null
+      | undefined
+      | {isExcluded: true}
+      | {diagnostics?: Array<Diagnostic>};
+
     if (res.error) {
       let diagnostic = await this.handleError(res.error, options);
-      return {
+      result = {
         diagnostics: Array.isArray(diagnostic)
           ? diagnostic
           : diagnostic
@@ -180,63 +217,142 @@ export default class NodeResolver {
         invalidateOnFileCreate: res.invalidateOnFileCreate,
         invalidateOnFileChange: res.invalidateOnFileChange,
       };
-    }
-
-    switch (res.resolution?.type) {
-      case 'Path':
-        return {
-          filePath: res.resolution.value,
-          invalidateOnFileCreate: res.invalidateOnFileCreate,
-          invalidateOnFileChange: res.invalidateOnFileChange,
-          sideEffects: res.sideEffects,
-          query: res.query != null ? new URLSearchParams(res.query) : undefined,
-        };
-      case 'Builtin':
-        return this.resolveBuiltin(res.resolution.value, options);
-      case 'External': {
-        if (
-          options.sourcePath &&
-          options.env.isLibrary &&
-          options.specifierType !== 'url'
-        ) {
-          let diagnostic = await this.checkExcludedDependency(
-            options.sourcePath,
-            options.filename,
-            options,
-          );
-          if (diagnostic) {
-            return {
-              diagnostics: [diagnostic],
-              invalidateOnFileCreate: res.invalidateOnFileCreate,
-              invalidateOnFileChange: res.invalidateOnFileChange,
-            };
+    } else {
+      switch (res.resolution?.type) {
+        case 'Path':
+          result = {
+            filePath: res.resolution.value,
+            invalidateOnFileCreate: res.invalidateOnFileCreate,
+            invalidateOnFileChange: res.invalidateOnFileChange,
+            sideEffects: res.sideEffects,
+            query:
+              res.query != null ? new URLSearchParams(res.query) : undefined,
+          };
+          break;
+        case 'Builtin':
+          result = await this.resolveBuiltin(res.resolution.value, options);
+          break;
+        case 'External': {
+          if (
+            options.sourcePath &&
+            options.env.isLibrary &&
+            options.specifierType !== 'url'
+          ) {
+            let diagnostic = await this.checkExcludedDependency(
+              options.sourcePath,
+              options.filename,
+              options,
+            );
+            if (diagnostic) {
+              result = {
+                diagnostics: [diagnostic],
+                invalidateOnFileCreate: res.invalidateOnFileCreate,
+                invalidateOnFileChange: res.invalidateOnFileChange,
+              };
+              break;
+            }
           }
-        }
 
-        return {
-          isExcluded: true,
-          invalidateOnFileCreate: res.invalidateOnFileCreate,
-          invalidateOnFileChange: res.invalidateOnFileChange,
-        };
+          result = {
+            isExcluded: true,
+            invalidateOnFileCreate: res.invalidateOnFileCreate,
+            invalidateOnFileChange: res.invalidateOnFileChange,
+          };
+          break;
+        }
+        case 'Empty':
+          result = {
+            filePath: empty,
+            invalidateOnFileCreate: res.invalidateOnFileCreate,
+            invalidateOnFileChange: res.invalidateOnFileChange,
+          };
+          break;
+        case 'Global': {
+          let global = res.resolution.value;
+          result = {
+            filePath: path.join(this.options.projectRoot, `${global}.js`),
+            code: `module.exports=${global};`,
+            invalidateOnFileCreate: res.invalidateOnFileCreate,
+            invalidateOnFileChange: res.invalidateOnFileChange,
+          };
+          break;
+        }
+        default:
+          result = null;
       }
-      case 'Empty':
-        return {
-          filePath: empty,
-          invalidateOnFileCreate: res.invalidateOnFileCreate,
-          invalidateOnFileChange: res.invalidateOnFileChange,
-        };
-      case 'Global': {
-        let global = res.resolution.value;
-        return {
-          filePath: path.join(this.options.projectRoot, `${global}.js`),
-          code: `module.exports=${global};`,
-          invalidateOnFileCreate: res.invalidateOnFileCreate,
-          invalidateOnFileChange: res.invalidateOnFileChange,
-        };
-      }
-      default:
-        return null;
     }
+
+    if (cacheKey != null) {
+      const cloned = this.cloneResolveResult(result);
+      this.#cache.set(cacheKey, Promise.resolve(cloned));
+      return this.cloneResolveResult(cloned);
+    }
+
+    return result;
+  }
+
+  tryResolveRelative(
+    options: ResolveOptions,
+  ): ResolveResult | null | undefined {
+    if (process.env.ATLASPACK_RESOLVER_DISABLE_RELATIVE_FAST_PATH === '1') {
+      return null;
+    }
+
+    let {parent, filename, specifierType, env} = options;
+    if (!parent || !filename) {
+      return null;
+    }
+
+    if (specifierType === 'url') {
+      return null;
+    }
+
+    if (!filename.startsWith('./') && !filename.startsWith('../')) {
+      return null;
+    }
+
+    if (filename.includes('?') || filename.includes('#')) {
+      return null;
+    }
+
+    if (path.extname(filename) === '') {
+      return null;
+    }
+
+    let parentDir = path.dirname(parent);
+    let resolved = path.resolve(parentDir, filename);
+
+    if (path.dirname(resolved) !== parentDir) {
+      return null;
+    }
+
+    let stats;
+    try {
+      stats = this.options.fs.statSync(resolved);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null;
+      }
+      throw err;
+    }
+
+    if (!stats.isFile()) {
+      return null;
+    }
+
+    let filePath = this.options.fs.realpathSync(resolved);
+    return {
+      filePath,
+      invalidateOnFileCreate: [
+        {fileName: 'tsconfig.json', aboveFilePath: parentDir},
+        {fileName: 'package.json', aboveFilePath: parentDir},
+      ],
+      invalidateOnFileChange: [
+        path.join(this.options.projectRoot, 'package.json'),
+      ],
+      sideEffects: true,
+      query: undefined,
+    };
   }
 
   async resolveBuiltin(
@@ -309,6 +425,7 @@ export default class NodeResolver {
 
           // Need to clear the resolver caches after installing the package
           this.resolversByEnv.clear();
+          this.#cache.clear();
 
           // Re-resolve
           return this.resolve({
@@ -383,6 +500,72 @@ export default class NodeResolver {
       if (include != null) {
         return !!include;
       }
+    }
+  }
+
+  cloneResolveResult(
+    result:
+      | ResolveResult
+      | {isExcluded: true}
+      | {diagnostics?: Array<Diagnostic>}
+      | null
+      | undefined,
+  ) {
+    if (result == null) {
+      return result;
+    }
+
+    if ('isExcluded' in result) {
+      return {...result};
+    }
+
+    if ('diagnostics' in result && result.diagnostics) {
+      return {
+        ...result,
+        diagnostics: result.diagnostics.map((diag) => ({...diag})),
+      } as typeof result;
+    }
+
+    let cloned: ResolveResult = {...result};
+
+    if (result.invalidateOnFileChange != null) {
+      cloned.invalidateOnFileChange = [...result.invalidateOnFileChange];
+    }
+
+    if (result.invalidateOnFileCreate != null) {
+      cloned.invalidateOnFileCreate = result.invalidateOnFileCreate.map(
+        (entry) => (entry && typeof entry === 'object' ? {...entry} : entry),
+      ) as ResolveResult['invalidateOnFileCreate'];
+    }
+
+    if (result.query instanceof URLSearchParams) {
+      cloned.query = new URLSearchParams(result.query);
+    }
+
+    return cloned;
+  }
+
+  getCacheKey(options: ResolveOptions): string | null {
+    let conditions = options.packageConditions?.join(',') ?? '';
+    let range = options.range ? JSON.stringify(options.range) : '';
+    let sourcePath = options.sourcePath ?? '';
+    let loc = options.loc
+      ? `${options.loc.filePath ?? ''}:${options.loc.start.line ?? ''}:${options.loc.start.column ?? ''}:${options.loc.end?.line ?? ''}:${options.loc.end?.column ?? ''}`
+      : '';
+
+    try {
+      return [
+        options.env.id,
+        options.parent ?? '',
+        options.filename,
+        options.specifierType,
+        range,
+        conditions,
+        sourcePath,
+        loc,
+      ].join('\0');
+    } catch {
+      return null;
     }
   }
 
