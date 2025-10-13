@@ -40,8 +40,8 @@ pub type NodeId = usize;
 pub struct AssetGraph {
   pub graph: StableDiGraph<NodeId, ()>,
   nodes: Vec<AssetGraphNode>,
-  requested_symbols: HashMap<NodeId, HashSet<String>>,
-  node_id_to_node_index: HashMap<NodeId, NodeIndex>,
+  requested_symbols: Vec<Option<HashSet<String>>>,
+  node_indices: Vec<NodeIndex>,
   content_key_to_node_id: HashMap<String, NodeId>,
   root_node_id: NodeId,
 }
@@ -56,16 +56,15 @@ impl AssetGraph {
   pub fn new() -> Self {
     let mut graph = StableDiGraph::new();
 
-    let mut node_id_to_node_index = HashMap::new();
     let nodes = vec![AssetGraphNode::Root];
     let root_node_id = 0;
 
-    node_id_to_node_index.insert(root_node_id, graph.add_node(root_node_id));
+    let node_index = graph.add_node(root_node_id);
 
     AssetGraph {
       graph,
-      requested_symbols: HashMap::new(),
-      node_id_to_node_index,
+      requested_symbols: vec![None],
+      node_indices: vec![node_index],
       content_key_to_node_id: HashMap::new(),
       nodes,
       root_node_id,
@@ -113,15 +112,17 @@ impl AssetGraph {
     self.nodes.push(node);
 
     let node_index = self.graph.add_node(node_id);
-    self.node_id_to_node_index.insert(node_id, node_index);
+    debug_assert_eq!(self.node_indices.len(), node_id);
+    self.node_indices.push(node_index);
     self.content_key_to_node_id.insert(content_key, node_id);
+    self.requested_symbols.push(None);
 
     node_id
   }
 
   pub fn add_asset(&mut self, asset: Arc<Asset>) -> NodeId {
     let node_id = self.add_node(asset.id.clone(), AssetGraphNode::Asset(asset));
-    self.requested_symbols.insert(node_id, HashSet::new());
+    self.requested_symbols[node_id] = Some(HashSet::new());
     node_id
   }
 
@@ -155,7 +156,7 @@ impl AssetGraph {
       }),
     );
 
-    self.requested_symbols.insert(node_id, HashSet::new());
+    self.requested_symbols[node_id] = Some(HashSet::new());
     node_id
   }
 
@@ -201,23 +202,28 @@ impl AssetGraph {
   pub fn get_outgoing_neighbors(&self, node_id: &NodeId) -> Vec<NodeId> {
     self
       .graph
-      .neighbors_directed(self.node_id_to_node_index[node_id], Direction::Outgoing)
+      .neighbors_directed(self.node_indices[*node_id], Direction::Outgoing)
       .filter_map(|node_index| self.graph.node_weight(node_index).copied())
       .collect()
   }
 
   pub fn get_requested_symbols(&self, idx: &NodeId) -> Option<&HashSet<String>> {
-    self.requested_symbols.get(idx)
+    self
+      .requested_symbols
+      .get(*idx)
+      .and_then(|symbols| symbols.as_ref())
   }
 
   pub fn get_requested_symbols_mut(&mut self, idx: &NodeId) -> Option<&mut HashSet<String>> {
-    self.requested_symbols.get_mut(idx)
+    self
+      .requested_symbols
+      .get_mut(*idx)
+      .and_then(|symbols| symbols.as_mut())
   }
 
   pub fn set_requested_symbol(&mut self, idx: &NodeId, symbol: String) -> bool {
-    self
-      .requested_symbols
-      .get_mut(idx)
+    self.requested_symbols[*idx]
+      .as_mut()
       .expect("Requested symbols should have been initialized")
       .insert(symbol)
   }
@@ -227,9 +233,8 @@ impl AssetGraph {
     let dependency_idx = self.add_dependency(dependency);
 
     if is_library {
-      self
-        .requested_symbols
-        .get_mut(&dependency_idx)
+      self.requested_symbols[dependency_idx]
+        .as_mut()
         .unwrap()
         .insert("*".into());
     }
@@ -238,18 +243,15 @@ impl AssetGraph {
   }
 
   pub fn has_edge(&mut self, from_idx: &NodeId, to_idx: &NodeId) -> bool {
-    self.graph.contains_edge(
-      self.node_id_to_node_index[from_idx],
-      self.node_id_to_node_index[to_idx],
-    )
+    self
+      .graph
+      .contains_edge(self.node_indices[*from_idx], self.node_indices[*to_idx])
   }
 
   pub fn add_edge(&mut self, from_id: &NodeId, to_id: &NodeId) {
-    self.graph.add_edge(
-      self.node_id_to_node_index[from_id],
-      self.node_id_to_node_index[to_id],
-      (),
-    );
+    self
+      .graph
+      .add_edge(self.node_indices[*from_id], self.node_indices[*to_id], ());
   }
 }
 
@@ -304,13 +306,12 @@ mod tests {
   }
 
   fn assert_requested_symbols(graph: &AssetGraph, idx: NodeId, expected: Vec<&str>) {
-    assert_eq!(
-      *graph.requested_symbols.get(&idx).unwrap(),
-      expected
-        .into_iter()
-        .map(|s| s.into())
-        .collect::<HashSet<String>>()
-    );
+    let expected = expected
+      .into_iter()
+      .map(|s| s.into())
+      .collect::<HashSet<String>>();
+
+    assert_eq!(graph.get_requested_symbols(&idx).unwrap(), &expected);
   }
 
   fn add_asset(
