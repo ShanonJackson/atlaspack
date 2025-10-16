@@ -43,8 +43,49 @@ const RUNS = process.env.ATLASPACK_BENCH_RUNS
   ? parseInt(process.env.ATLASPACK_BENCH_RUNS, 10)
   : 10;
 
+const EXTRA_FLAGS = process.env.ATLASPACK_BENCH_FLAGS
+  ? parseFlags(process.env.ATLASPACK_BENCH_FLAGS)
+  : [];
+
+const ARTIFACT_DIR = process.env.ATLASPACK_BENCH_ARTIFACT_DIR
+  ? path.resolve(benchDir, process.env.ATLASPACK_BENCH_ARTIFACT_DIR)
+  : null;
+
 async function main() {
   writeHeader('Settings');
+
+  const settings = [
+    {
+      key: 'mode',
+      value: chalk.green(`'${MODE}'`),
+    },
+    {
+      key: 'plugins',
+      value: chalk.yellow(PLUGINS),
+    },
+    {
+      key: 'copies',
+      value: chalk.yellow(COPIES),
+    },
+    {
+      key: 'runs',
+      value: chalk.yellow(RUNS),
+    },
+  ];
+
+  if (EXTRA_FLAGS.length > 0) {
+    settings.push({
+      key: 'extraFlags',
+      value: chalk.cyan(EXTRA_FLAGS.join(' ')),
+    });
+  }
+
+  if (ARTIFACT_DIR) {
+    settings.push({
+      key: 'artifactDir',
+      value: chalk.cyan(ARTIFACT_DIR),
+    });
+  }
 
   printTable({
     columns: [
@@ -54,24 +95,7 @@ async function main() {
         name: 'Value     ',
       },
     ],
-    data: [
-      {
-        key: 'mode',
-        value: chalk.green(`'${MODE}'`),
-      },
-      {
-        key: 'plugins',
-        value: chalk.yellow(PLUGINS),
-      },
-      {
-        key: 'copies',
-        value: chalk.yellow(COPIES),
-      },
-      {
-        key: 'runs',
-        value: chalk.yellow(RUNS),
-      },
-    ],
+    data: settings,
     headerOptions: {
       formatter: 'capitalCase',
     },
@@ -169,14 +193,20 @@ async function main() {
       code.push(`globalThis['three_js_${i}'] = three_js_${i};`);
     }
 
-    await Promise.all([
+    const setupTasks = [
       ...copies,
       fs.appendFile(
         path.join(tmpDir, 'src', 'index.js'),
         [...imports, ...code].join('\n'),
         'utf8',
       ),
-    ]);
+    ];
+
+    if (ARTIFACT_DIR) {
+      setupTasks.push(fs.mkdir(ARTIFACT_DIR, {recursive: true}));
+    }
+
+    await Promise.all(setupTasks);
 
     // Link node_modules
     console.log('Linking node_modules...');
@@ -207,6 +237,7 @@ async function main() {
             '--dist-dir=./dist',
             ...(MODE === 'V3' ? ['--feature-flag', 'atlaspackV3=true'] : []),
             './src/index.js',
+            ...EXTRA_FLAGS,
           ],
           {
             cwd: tmpDir,
@@ -220,6 +251,10 @@ async function main() {
       const buildTime = Date.now() - startTime;
       console.log(`Build ${i + 1}: ${buildTime}ms`);
       buildTimes.push(buildTime);
+
+      if (ARTIFACT_DIR) {
+        await collectArtifacts(tmpDir, ARTIFACT_DIR, i + 1);
+      }
 
       await rmrf(path.join(tmpDir, '.parcel-cache'));
       await rmrf(path.join(tmpDir, 'dist'));
@@ -242,6 +277,66 @@ async function main() {
 }
 
 main();
+
+function parseFlags(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.every((flag) => typeof flag === 'string')) {
+      return parsed;
+    }
+
+    throw new Error('expected an array of strings');
+  } catch (error) {
+    console.error('Failed to parse ATLASPACK_BENCH_FLAGS:', error);
+    process.exit(1);
+  }
+}
+
+async function collectArtifacts(tmpDir, artifactDir, runNumber) {
+  const metricsSource = path.join(tmpDir, 'parcel-metrics.json');
+  const metricsTarget = path.join(
+    artifactDir,
+    `parcel-metrics-run-${String(runNumber).padStart(2, '0')}.json`,
+  );
+
+  await copyIfExists(metricsSource, metricsTarget);
+
+  let entries = [];
+  try {
+    entries = await fs.readdir(tmpDir);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
+    return;
+  }
+
+  await Promise.all(
+    entries
+      .filter((entry) => entry.startsWith('profile-') && entry.endsWith('.trace'))
+      .map(async (entry) => {
+        const targetName = entry.replace(
+          /^profile-/,
+          `profile-run-${String(runNumber).padStart(2, '0')}-`,
+        );
+
+        await copyIfExists(
+          path.join(tmpDir, entry),
+          path.join(artifactDir, targetName),
+        );
+      }),
+  );
+}
+
+async function copyIfExists(source, destination) {
+  try {
+    await fs.copyFile(source, destination);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+}
 
 function fetchThreeJs() {
   child_process.execFileSync(

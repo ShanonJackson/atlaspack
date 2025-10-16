@@ -32,7 +32,12 @@ import type {ProjectPath} from './projectPath';
 import assert from 'assert';
 import invariant from 'assert';
 import nullthrows from 'nullthrows';
-import {ContentGraph, ALL_EDGE_TYPES, mapVisitor} from '@atlaspack/graph';
+import {
+  BitSet,
+  ContentGraph,
+  ALL_EDGE_TYPES,
+  mapVisitor,
+} from '@atlaspack/graph';
 import {Hash, hashString} from '@atlaspack/rust';
 import {
   DefaultMap,
@@ -147,6 +152,12 @@ export default class BundleGraph {
   _graph: ContentGraph<BundleGraphNode, BundleGraphEdgeType>;
   _bundlePublicIds /*: Set<string> */ = new Set<string>();
   _conditions /*: Map<string, Condition> */ = new Map<string, Condition>();
+  _bundleContainsBitset: BitSet | null | undefined;
+  _bundleContainsBitsetInUse: boolean = false;
+  _bundleEntryOrderCache: Map<
+    string,
+    {key: string; order: Map<string, number>}
+  > = new Map();
 
   constructor({
     graph,
@@ -814,6 +825,7 @@ export default class BundleGraph {
     this.addAssetGraphToBundle(asset, bundle, shouldSkipDependency);
     if (!bundle.entryAssetIds.includes(asset.id)) {
       bundle.entryAssetIds.push(asset.id);
+      this._invalidateEntryOrder(bundle.id);
     }
   }
 
@@ -852,6 +864,69 @@ export default class BundleGraph {
       bundleGraphEdgeTypes.internal_async,
     );
     this._removeExternalDependency(bundle, dependency);
+  }
+
+  _acquireBundleContainsBitset(): BitSet {
+    if (
+      !this._bundleContainsBitset ||
+      this._bundleContainsBitset.capacity < this._graph.nodes.length
+    ) {
+      this._bundleContainsBitset = new BitSet(this._graph.nodes.length);
+    }
+
+    if (this._bundleContainsBitsetInUse) {
+      return new BitSet(this._graph.nodes.length);
+    }
+
+    this._bundleContainsBitsetInUse = true;
+    this._bundleContainsBitset.clear();
+    return this._bundleContainsBitset;
+  }
+
+  _releaseBundleContainsBitset(bitset: BitSet) {
+    if (bitset === this._bundleContainsBitset) {
+      bitset.clear();
+      this._bundleContainsBitsetInUse = false;
+      return;
+    }
+    bitset.clear();
+  }
+
+  _invalidateEntryOrder(bundleId: string) {
+    this._bundleEntryOrderCache.delete(bundleId);
+  }
+
+  _getEntryOrder(
+    bundleId: string,
+    entryAssetIds: Array<ContentKey>,
+  ): Map<string, number> | null {
+    if (entryAssetIds.length === 0) {
+      this._bundleEntryOrderCache.delete(bundleId);
+      return null;
+    }
+
+    let key = entryAssetIds.join('\0');
+    let cached = this._bundleEntryOrderCache.get(bundleId);
+    if (cached && cached.key === key) {
+      return cached.order;
+    }
+
+    let order = new Map<string, number>();
+    for (let i = 0; i < entryAssetIds.length; i++) {
+      order.set(entryAssetIds[i], i);
+    }
+
+    this._bundleEntryOrderCache.set(bundleId, {key, order});
+    return order;
+  }
+
+  _getEntryRank(order: Map<string, number>, node: BundleGraphNode): number {
+    if (node.type !== 'asset') {
+      return Number.MAX_SAFE_INTEGER;
+    }
+
+    let rank = order.get(node.value.id);
+    return rank != null ? rank : Number.MAX_SAFE_INTEGER;
   }
 
   isDependencySkipped(dependency: Dependency): boolean {
@@ -1035,6 +1110,7 @@ export default class BundleGraph {
           // Shared bundles have untyped edges to their asset graphs but don't
           // have entry assets. For those that have entry asset ids, remove them.
           bundle.entryAssetIds.splice(entryIndex, 1);
+          this._invalidateEntryOrder(bundle.id);
         }
       }
 
@@ -1560,65 +1636,116 @@ export default class BundleGraph {
   ): TContext | null | undefined {
     let entries = !startAsset;
     let bundleNodeId = this._graph.getNodeIdByContentKey(bundle.id);
+    let contains = this._acquireBundleContainsBitset();
+    try {
+      this._graph.adjacencyList.forEachNodeIdConnectedFromReverse(
+        bundleNodeId,
+        (nodeId) => {
+          contains.add(nodeId);
+          return false;
+        },
+        bundleGraphEdgeTypes.contains,
+      );
 
-    // A modified DFS traversal which traverses entry assets in the same order
-    // as their ids appear in `bundle.entryAssetIds`.
-    return this._graph.dfs({
-      visit: mapVisitor((nodeId, actions) => {
-        let node = nullthrows(this._graph.getNode(nodeId));
+      let visitExit = typeof visit === 'function' ? null : (visit.exit ?? null);
 
+      let wrapEnter = (
+        nodeId: NodeId,
+        context: TContext | null | undefined,
+        actions: TraversalActions,
+      ) => {
         if (nodeId === bundleNodeId) {
           return;
         }
 
-        if (node.type === 'dependency' || node.type === 'asset') {
-          if (
-            this._graph.hasEdge(
-              bundleNodeId,
-              nodeId,
-              bundleGraphEdgeTypes.contains,
-            )
-          ) {
-            return node;
+        let node = nullthrows(this._graph.getNode(nodeId));
+        if (
+          (node.type === 'dependency' || node.type === 'asset') &&
+          contains.has(nodeId)
+        ) {
+          if (typeof visit === 'function') {
+            return visit(node, context, actions);
+          }
+
+          if (visit.enter) {
+            return visit.enter(node, context, actions);
           }
         }
 
         actions.skipChildren();
-      }, visit),
-      startNodeId: startAsset
-        ? this._graph.getNodeIdByContentKey(startAsset.id)
-        : bundleNodeId,
-      getChildren: (nodeId) => {
-        let children = this._graph
-          .getNodeIdsConnectedFrom(nodeId)
-          .map((id) => [id, nullthrows(this._graph.getNode(id))]);
+      };
 
-        let sorted =
-          entries && bundle.entryAssetIds.length > 0
-            ? // @ts-expect-error TS2345
-              children.sort(([, a]: [any, any], [, b]: [any, any]) => {
-                let aIndex = bundle.entryAssetIds.indexOf(a.id);
-                let bIndex = bundle.entryAssetIds.indexOf(b.id);
+      let exit =
+        visitExit == null
+          ? undefined
+          : (
+              nodeId: NodeId,
+              context: TContext | null | undefined,
+              actions: TraversalActions,
+            ) => {
+              if (nodeId === bundleNodeId || !contains.has(nodeId)) {
+                return;
+              }
 
-                if (aIndex === bIndex) {
-                  // If both don't exist in the entry asset list, or
-                  // otherwise have the same index.
-                  return 0;
-                } else if (aIndex === -1) {
-                  return 1;
-                } else if (bIndex === -1) {
-                  return -1;
-                }
+              let node = this._graph.getNode(nodeId);
+              if (
+                !node ||
+                (node.type !== 'asset' && node.type !== 'dependency')
+              ) {
+                return;
+              }
 
-                return aIndex - bIndex;
-              })
-            : children;
+              return visitExit(node, context, actions);
+            };
 
-        entries = false;
-        // @ts-expect-error TS2345
-        return sorted.map(([id]: [any]) => id);
-      },
-    });
+      // A modified DFS traversal which traverses entry assets in the same order
+      // as their ids appear in `bundle.entryAssetIds`.
+      return this._graph.dfs({
+        visit:
+          typeof visit === 'function' ? wrapEnter : {enter: wrapEnter, exit},
+        startNodeId: startAsset
+          ? this._graph.getNodeIdByContentKey(startAsset.id)
+          : bundleNodeId,
+        getChildren: (nodeId) => {
+          let childNodeIds = this._graph.getNodeIdsConnectedFrom(nodeId);
+
+          if (entries) {
+            entries = false;
+
+            if (childNodeIds.length > 1 && bundle.entryAssetIds.length > 0) {
+              let entryOrder = this._getEntryOrder(
+                bundle.id,
+                bundle.entryAssetIds,
+              );
+              if (entryOrder) {
+                let decorated = childNodeIds.map((id, index) => ({
+                  id,
+                  index,
+                  node: nullthrows(this._graph.getNode(id)),
+                }));
+
+                decorated.sort((a, b) => {
+                  let aOrder = this._getEntryRank(entryOrder, a.node);
+                  let bOrder = this._getEntryRank(entryOrder, b.node);
+
+                  if (aOrder !== bOrder) {
+                    return aOrder - bOrder;
+                  }
+
+                  return a.index - b.index;
+                });
+
+                return decorated.map((child) => child.id);
+              }
+            }
+          }
+
+          return childNodeIds;
+        },
+      });
+    } finally {
+      this._releaseBundleContainsBitset(contains);
+    }
   }
 
   traverse<TContext>(
