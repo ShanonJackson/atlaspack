@@ -1,0 +1,213 @@
+
+Profile: 5294 nodes
+Total sampled time: 104923.5ms
+
+Top inclusive times by file/url
+202906.5ms (100.0%) - (anonymous)
+82294.0ms (78.4%) - /workspace/atlaspack/packages/packagers/js/lib/ScopeHoistingPackager.js
+34390.8ms (32.8%) - /workspace/atlaspack/packages/core/graph/lib/Graph.js
+30611.4ms (29.2%) - /workspace/atlaspack/packages/core/core/lib/BundleGraph.js
+15294.3ms (14.6%) - node:internal/process/task_queues
+8728.5ms (8.3%) - /workspace/atlaspack/packages/core/cache/lib/LMDBLiteCache.js
+8418.2ms (8.0%) - /workspace/atlaspack/node_modules/@parcel/source-map/dist/node.js
+8372.7ms (8.0%) - /workspace/atlaspack/packages/core/core/lib/SymbolPropagation.js
+7991.4ms (7.6%) - /workspace/atlaspack/packages/core/core/lib/public/Bundle.js
+7868.8ms (7.5%) - /workspace/atlaspack/packages/optimizers/swc/lib/SwcOptimizer.js
+7609.1ms (7.3%) - /workspace/atlaspack/packages/core/core/lib/requests/AssetGraphRequestRust.js
+5617.7ms (5.4%) - node:buffer
+4776.3ms (4.6%) - /workspace/atlaspack/packages/core/core/lib/PackagerRunner.js
+4369.0ms (4.2%) - /workspace/atlaspack/node_modules/@parcel/source-map/dist/SourceMap.js
+3978.9ms (3.8%) - /workspace/atlaspack/node_modules/@parcel/source-map/dist/utils.js
+
+Top self times by file/url
+82913.7ms (79.0%) - (anonymous)
+3716.6ms (3.5%) - /workspace/atlaspack/node_modules/@parcel/source-map/dist/utils.js
+2289.0ms (2.2%) - /workspace/atlaspack/packages/core/core/lib/BundleGraph.js
+2208.5ms (2.1%) - /workspace/atlaspack/node_modules/@parcel/source-map/dist/node.js
+2028.8ms (1.9%) - /workspace/atlaspack/packages/packagers/js/lib/ScopeHoistingPackager.js
+1743.6ms (1.7%) - /workspace/atlaspack/packages/core/core/lib/SymbolPropagation.js
+1321.1ms (1.3%) - /workspace/atlaspack/packages/core/graph/lib/AdjacencyList.js
+994.1ms (0.9%) - node:internal/buffer
+989.5ms (0.9%) - /workspace/atlaspack/packages/core/graph/lib/ContentGraph.js
+753.0ms (0.7%) - /workspace/atlaspack/node_modules/@parcel/source-map/dist/SourceMap.js
+736.0ms (0.7%) - /workspace/atlaspack/packages/optimizers/swc/lib/SwcOptimizer.js
+727.4ms (0.7%) - /workspace/atlaspack/packages/core/graph/lib/Graph.js
+620.4ms (0.6%) - /workspace/atlaspack/packages/core/core/lib/requests/AssetGraphRequestRust.js
+416.8ms (0.4%) - /workspace/atlaspack/packages/core/core/lib/public/Dependency.js
+320.3ms (0.3%) - /workspace/atlaspack/packages/core/cache/lib/LMDBLiteCache.js
+
+Top inclusive times by function
+104923.5ms (100.0%) - (root) ((anonymous))
+62817.8ms (59.9%) - (idle) ((anonymous))
+36069.3ms (34.4%) - (anonymous) (/workspace/atlaspack/packages/core/profiler/lib/SamplingProfiler.js)
+22566.4ms (21.5%) - mappedEnter (/workspace/atlaspack/packages/core/graph/lib/Graph.js)
+20165.9ms (19.2%) - visitAsset (/workspace/atlaspack/packages/packagers/js/lib/ScopeHoistingPackager.js)
+20114.1ms (19.2%) - buildAsset (/workspace/atlaspack/packages/packagers/js/lib/ScopeHoistingPackager.js)
+15282.6ms (14.6%) - processTicksAndRejections (node:internal/process/task_queues)
+15129.1ms (14.4%) - runMicrotasks ((anonymous))
+14660.8ms (14.0%) - traverseAssets (/workspace/atlaspack/packages/core/core/lib/BundleGraph.js)
+11546.2ms (11.0%) - JsCallable::then_error_fn ((anonymous))
+8991.7ms (8.6%) - package (/workspace/atlaspack/packages/core/core/lib/PackagerRunner.js)
+8390.8ms (8.0%) - walk (/workspace/atlaspack/packages/core/build-cache/lib/serializer.js)
+8311.9ms (7.9%) - dfs (/workspace/atlaspack/packages/core/graph/lib/Graph.js)
+7847.0ms (7.5%) - optimize (/workspace/atlaspack/packages/core/core/lib/PackagerRunner.js)
+7843.9ms (7.5%) - traverseBundle (/workspace/atlaspack/packages/core/core/lib/BundleGraph.js)
+
+Top self times by function
+62817.8ms (59.9%) - (idle) ((anonymous))
+11546.2ms (11.0%) - JsCallable::then_error_fn ((anonymous))
+3755.4ms (3.6%) - (garbage collector) ((anonymous))
+3700.4ms (3.5%) - partialVlqMapToSourceMap (/workspace/atlaspack/node_modules/@parcel/source-map/dist/utils.js)
+2515.0ms (2.4%) - (program) ((anonymous))
+2141.9ms (2.0%) - addVLQMap (/workspace/atlaspack/node_modules/@parcel/source-map/dist/node.js)
+2055.0ms (2.0%) - (anonymous) (/workspace/atlaspack/packages/core/profiler/lib/SamplingProfiler.js)
+1535.6ms (1.5%) - buildAsset (/workspace/atlaspack/packages/packagers/js/lib/ScopeHoistingPackager.js)
+836.9ms (0.8%) - utf8Write (node:internal/buffer)
+803.3ms (0.8%) - utf8Slice ((anonymous))
+764.1ms (0.7%) - getSymbolResolution (/workspace/atlaspack/packages/packagers/js/lib/ScopeHoistingPackager.js)
+736.6ms (0.7%) - optimize (/workspace/atlaspack/packages/core/core/lib/PackagerRunner.js)
+603.9ms (0.6%) - toVLQ (/workspace/atlaspack/node_modules/@parcel/source-map/dist/SourceMap.js)
+560.6ms (0.5%) - propagateSymbolsDown (/workspace/atlaspack/packages/core/core/lib/SymbolPropagation.js)
+520.6ms (0.5%) - getNodeIdByContentKey (/workspace/atlaspack/packages/core/graph/lib/ContentGraph.js)
+
+Profile: 1191 nodes
+Total sampled time: 105250.5ms
+
+Top inclusive times by file/url
+210152.6ms (100.0%) - (anonymous)
+8168.1ms (7.8%) - node:internal/modules/cjs/loader
+1456.9ms (1.4%) - /workspace/atlaspack/packages/core/workers/lib/child.js
+1368.4ms (1.3%) - node:internal/modules/helpers
+1348.9ms (1.3%) - node:diagnostics_channel
+785.4ms (0.7%) - /workspace/atlaspack/packages/core/workers/lib/threads/ThreadsChild.js
+424.5ms (0.4%) - /workspace/atlaspack/packages/core/core/lib/worker.js
+393.2ms (0.4%) - node:internal/per_context/messageport
+393.2ms (0.4%) - node:internal/event_target
+168.1ms (0.2%) - /workspace/atlaspack/packages/core/profiler/lib/SamplingProfiler.js
+141.8ms (0.1%) - /workspace/atlaspack/packages/core/build-cache/lib/serializer.js
+96.9ms (0.1%) - /workspace/atlaspack/node_modules/@parcel/source-map/dist/node.js
+94.7ms (0.1%) - /workspace/atlaspack/node_modules/@parcel/source-map/parcel_sourcemap_node/index.js
+93.9ms (0.1%) - /workspace/atlaspack/packages/core/core/lib/Transformation.js
+90.5ms (0.1%) - /workspace/atlaspack/packages/core/core/lib/requests/PathRequest.js
+
+Top self times by file/url
+104902.1ms (99.7%) - (anonymous)
+131.0ms (0.1%) - node:internal/modules/cjs/loader
+56.0ms (0.1%) - node:inspector
+51.6ms (0.0%) - node:internal/child_process
+40.7ms (0.0%) - node:fs
+8.7ms (0.0%) - node:internal/bootstrap/realm
+8.5ms (0.0%) - node:os
+7.7ms (0.0%) - /workspace/atlaspack/packages/core/core/lib/AssetGraph.js
+5.7ms (0.0%) - node:internal/util
+3.9ms (0.0%) - /workspace/atlaspack/packages/core/fs/lib/NodeFS.js
+3.7ms (0.0%) - node:path
+3.2ms (0.0%) - /workspace/atlaspack/packages/core/core/lib/worker.js
+3.2ms (0.0%) - node:internal/modules/package_json_reader
+2.9ms (0.0%) - /workspace/atlaspack/packages/core/cache/lib/LMDBLiteCache.js
+2.0ms (0.0%) - /workspace/atlaspack/packages/core/utils/lib/index.js
+
+Top inclusive times by function
+105250.5ms (100.0%) - (root) ((anonymous))
+104674.1ms (99.5%) - (idle) ((anonymous))
+9325.1ms (8.9%) - (anonymous) (node:internal/per_context/messageport)
+1349.3ms (1.3%) - require (node:internal/modules/helpers)
+1347.7ms (1.3%) - wrapModuleLoad (node:internal/modules/cjs/loader)
+1346.4ms (1.3%) - traceSync (node:diagnostics_channel)
+424.3ms (0.4%) - childInit (/workspace/atlaspack/packages/core/workers/lib/child.js)
+392.7ms (0.4%) - handleMessage (/workspace/atlaspack/packages/core/workers/lib/threads/ThreadsChild.js)
+378.2ms (0.4%) - messageListener (/workspace/atlaspack/packages/core/workers/lib/child.js)
+378.2ms (0.4%) - handleRequest (/workspace/atlaspack/packages/core/workers/lib/child.js)
+173.7ms (0.2%) - (garbage collector) ((anonymous))
+104.8ms (0.1%) - spawnSync (node:child_process)
+97.8ms (0.1%) - _sourceMap (/workspace/atlaspack/packages/core/core/lib/worker.js)
+72.6ms (0.1%) - wrapSafe (node:internal/modules/cjs/loader)
+56.0ms (0.1%) - startProfiling (/workspace/atlaspack/packages/core/profiler/lib/SamplingProfiler.js)
+
+Top self times by function
+104674.1ms (99.5%) - (idle) ((anonymous))
+173.7ms (0.2%) - (garbage collector) ((anonymous))
+86.9ms (0.1%) - (anonymous) (node:internal/per_context/messageport)
+72.1ms (0.1%) - wrapSafe (node:internal/modules/cjs/loader)
+56.0ms (0.1%) - post (node:inspector)
+52.0ms (0.0%) - spawnSync (node:child_process)
+38.0ms (0.0%) - readFileSync (node:fs)
+28.8ms (0.0%) - dlopen ((anonymous))
+10.7ms (0.0%) - internalModuleStat ((anonymous))
+8.0ms (0.0%) - compileForInternalLoader (node:internal/bootstrap/realm)
+5.9ms (0.0%) - (program) ((anonymous))
+5.1ms (0.0%) - promisify (node:internal/util)
+3.4ms (0.0%) - readFileUtf8 ((anonymous))
+3.3ms (0.0%) - deserialize (/workspace/atlaspack/packages/core/fs/lib/NodeFS.js)
+3.2ms (0.0%) - childInit (/workspace/atlaspack/packages/core/workers/lib/child.js)
+
+Profile: 1238 nodes
+Total sampled time: 105256.6ms
+
+Top inclusive times by file/url
+209933.9ms (100.0%) - (anonymous)
+15058.3ms (14.3%) - node:internal/modules/cjs/loader
+2529.0ms (2.4%) - node:internal/modules/helpers
+2463.6ms (2.3%) - node:diagnostics_channel
+2350.5ms (2.2%) - /workspace/atlaspack/packages/core/workers/lib/child.js
+1242.2ms (1.2%) - /workspace/atlaspack/packages/core/workers/lib/threads/ThreadsChild.js
+634.3ms (0.6%) - /workspace/atlaspack/packages/core/core/lib/worker.js
+620.8ms (0.6%) - node:internal/per_context/messageport
+620.8ms (0.6%) - node:internal/event_target
+237.2ms (0.2%) - /workspace/atlaspack/packages/core/core/lib/Transformation.js
+228.9ms (0.2%) - /workspace/atlaspack/packages/core/core/lib/requests/PathRequest.js
+180.4ms (0.2%) - /workspace/atlaspack/packages/core/build-cache/lib/serializer.js
+180.1ms (0.2%) - /workspace/atlaspack/packages/core/profiler/lib/SamplingProfiler.js
+158.9ms (0.2%) - /workspace/atlaspack/packages/core/core/lib/public/Bundle.js
+146.5ms (0.1%) - node:internal/bootstrap/realm
+
+Top self times by file/url
+104673.1ms (99.4%) - (anonymous)
+269.0ms (0.3%) - node:internal/modules/cjs/loader
+73.4ms (0.1%) - node:internal/child_process
+53.9ms (0.1%) - node:inspector
+47.8ms (0.0%) - node:fs
+26.7ms (0.0%) - /workspace/atlaspack/packages/core/graph/lib/index.js
+21.8ms (0.0%) - node:internal/bootstrap/realm
+14.0ms (0.0%) - node:path
+9.0ms (0.0%) - node:diagnostics_channel
+8.5ms (0.0%) - /workspace/atlaspack/packages/core/utils/lib/index.js
+6.3ms (0.0%) - node:internal/util
+6.1ms (0.0%) - node:dgram
+4.3ms (0.0%) - /workspace/atlaspack/packages/core/build-cache/lib/serializer.js
+4.0ms (0.0%) - /workspace/atlaspack/packages/core/core/lib/requests/AtlaspackConfigRequest.js
+3.4ms (0.0%) - node:internal/per_context/primordials
+
+Top inclusive times by function
+105256.6ms (100.0%) - (root) ((anonymous))
+104542.0ms (99.3%) - (idle) ((anonymous))
+16683.5ms (15.9%) - (anonymous) (node:internal/per_context/messageport)
+2462.1ms (2.3%) - require (node:internal/modules/helpers)
+2462.0ms (2.3%) - wrapModuleLoad (node:internal/modules/cjs/loader)
+2460.8ms (2.3%) - traceSync (node:diagnostics_channel)
+634.0ms (0.6%) - childInit (/workspace/atlaspack/packages/core/workers/lib/child.js)
+620.2ms (0.6%) - handleMessage (/workspace/atlaspack/packages/core/workers/lib/threads/ThreadsChild.js)
+603.1ms (0.6%) - handleRequest (/workspace/atlaspack/packages/core/workers/lib/child.js)
+602.1ms (0.6%) - messageListener (/workspace/atlaspack/packages/core/workers/lib/child.js)
+226.8ms (0.2%) - wrapSafe (node:internal/modules/cjs/loader)
+149.7ms (0.1%) - spawnSync (node:child_process)
+91.1ms (0.1%) - _sourceMap (/workspace/atlaspack/packages/core/core/lib/worker.js)
+83.2ms (0.1%) - resolveForCJSWithHooks (node:internal/modules/cjs/loader)
+82.6ms (0.1%) - (garbage collector) ((anonymous))
+
+Top self times by function
+104542.0ms (99.3%) - (idle) ((anonymous))
+226.1ms (0.2%) - wrapSafe (node:internal/modules/cjs/loader)
+99.0ms (0.1%) - (anonymous) (node:internal/per_context/messageport)
+82.6ms (0.1%) - (garbage collector) ((anonymous))
+74.6ms (0.1%) - spawnSync (node:child_process)
+53.9ms (0.1%) - post (node:inspector)
+34.4ms (0.0%) - realpathSync (node:fs)
+17.9ms (0.0%) - compileForInternalLoader (node:internal/bootstrap/realm)
+13.5ms (0.0%) - internalModuleStat ((anonymous))
+12.0ms (0.0%) - readFileSync (node:fs)
+10.6ms (0.0%) - getNearestParentPackageJSON (node:internal/modules/package_json_reader)
+8.8ms (0.0%) - (program) ((anonymous))
+7.0ms (0.0%) - traceSync (node:diagnostics_channel)
+6.2ms (0.0%) - resolve (node:path)
+6.2ms (0.0%) - dispatch ((anonymous))
